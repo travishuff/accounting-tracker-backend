@@ -1,13 +1,17 @@
-const router = require('express').Router();
+const { Router } = require('express');
 
-const bananas = require('./bananas');
+const { createBananaRouter } = require('./bananas');
 
-router.get('/', (req, res, next) => {
-    res.send('hi');
-});
+function createRoutes({ databasePath }) {
+  const router = Router();
 
-router.route('/bananas').get(bananas.get);
-router.route('/bananas').post(bananas.buy);
-router.route('/bananas').put(bananas.sell);
+  router.get('/', (req, res) => {
+    res.json({ status: 'ok' });
+  });
 
-module.exports = router;
+  router.use('/bananas', createBananaRouter({ databasePath }));
+
+  return router;
+}
+
+module.exports = { createRoutes };

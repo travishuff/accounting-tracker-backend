@@ -1,36 +1,25 @@
-const cors = require('cors')
-const express = require('express')
-const fs = require('fs')
-const { promisify } = require('util')
+const { writeFile } = require('node:fs/promises');
 
-const writeFileAsync = promisify(fs.writeFile)
+const { createApp } = require('./app');
+const { getConfig } = require('./config');
 
-const app = express()
-const http = require('http').Server(app)
+async function startServer() {
+  const { databasePath, port } = getConfig();
 
-const { DATABASE, PORT } = require('./config')
+  await writeFile(databasePath, '[]\n');
 
-// Allow cross-domain requests
-app.use(cors())
+  const app = createApp({ databasePath });
 
-// Initialize body-parsing middleware
-require('./middleware')(app)
+  return app.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+  });
+}
 
-// Initialize routing middleware
-app.use('/api', require('./routes'))
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error('Failed to start server', error);
+    process.exitCode = 1;
+  });
+}
 
-// Error handling middleware
-app.use((err, req, res) => {
-  console.log('Request reached error handling', err)
-  res.sendStatus(err.status || 500)
-})
-
-;(async function init() {
-  // Initialize "database"
-  await writeFileAsync(DATABASE, '[]')
-
-  // Start express server
-  http.listen(PORT, () =>
-    console.log(`The server is listening closely on port ${PORT}...`)
-  )
-})()
+module.exports = { startServer };

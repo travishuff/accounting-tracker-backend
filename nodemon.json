@@ -1,5 +1,0 @@
-{
-    "ext": "js",
-    "ignore": ["node_modules/"],
-    "exec": "npm start"
-}

@@ -1,6 +1,10 @@
-const { join } = require('path');
+const { join } = require('node:path');
 
-module.exports = {
-    PORT: process.env.PORT || 8080,
-    DATABASE: join(__dirname, './bananas.json'),
-};
+function getConfig() {
+  return {
+    port: Number(process.env.PORT) || 8080,
+    databasePath: process.env.DATABASE_PATH || join(__dirname, 'bananas.json'),
+  };
+}
+
+module.exports = { getConfig };
