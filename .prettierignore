@@ -1,4 +1,4 @@
 node_modules
-bananas.json
 dist
 dist-test
+package-lock.json
