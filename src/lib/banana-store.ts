@@ -1,7 +1,38 @@
-const { randomUUID } = require('node:crypto');
-const { readFile, writeFile } = require('node:fs/promises');
+import { randomUUID } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
 
-function isValidDateString(value) {
+type Banana = {
+  id: string;
+  buyDate: string;
+  sellDate: string | null;
+};
+
+type BuyInput = {
+  buyDate: string;
+  number: number;
+};
+
+type SellInput = {
+  sellDate: string;
+  number: number;
+};
+
+type BananaStore = {
+  list: () => Promise<Banana[]>;
+  buy: (input: BuyInput) => Promise<Banana[]>;
+  sell: (input: SellInput) => Promise<Banana[]>;
+};
+
+class HttpError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function isValidDateString(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
   }
@@ -10,29 +41,27 @@ function isValidDateString(value) {
   const date = new Date(Date.UTC(year, month - 1, day));
 
   return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   );
 }
 
-function daysBetween(start, end) {
+function daysBetween(start: string, end: string): number {
   const startDate = new Date(`${start}T00:00:00Z`);
   const endDate = new Date(`${end}T00:00:00Z`);
 
-  return Math.floor((endDate - startDate) / 86_400_000);
+  return Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000);
 }
 
-async function readBananas(databasePath) {
+async function readBananas(databasePath: string): Promise<Banana[]> {
   const data = await readFile(databasePath, 'utf8');
-  return JSON.parse(data);
+  return JSON.parse(data) as Banana[];
 }
 
-async function writeBananas(databasePath, bananas) {
+async function writeBananas(databasePath: string, bananas: Banana[]): Promise<void> {
   await writeFile(databasePath, JSON.stringify(bananas, null, 2));
 }
 
-function validateCount(number) {
+function validateCount(number: number): string | null {
   if (!Number.isInteger(number)) {
     return '"number" must be a whole number';
   }
@@ -44,24 +73,20 @@ function validateCount(number) {
   return null;
 }
 
-function createBananaStore(databasePath) {
+function createBananaStore(databasePath: string): BananaStore {
   return {
     async list() {
       return readBananas(databasePath);
     },
 
-    async buy({ buyDate, number }) {
+    async buy({ buyDate, number }: BuyInput) {
       const countError = validateCount(number);
       if (countError) {
-        const error = new Error(countError);
-        error.status = 400;
-        throw error;
+        throw new HttpError(countError, 400);
       }
 
       if (!isValidDateString(buyDate)) {
-        const error = new Error('"buyDate" must be of the form "YYYY-MM-DD"');
-        error.status = 400;
-        throw error;
+        throw new HttpError('"buyDate" must be of the form "YYYY-MM-DD"', 400);
       }
 
       const bananas = Array.from({ length: number }, () => ({
@@ -76,22 +101,18 @@ function createBananaStore(databasePath) {
       return bananas;
     },
 
-    async sell({ sellDate, number }) {
+    async sell({ sellDate, number }: SellInput) {
       const countError = validateCount(number);
       if (countError) {
-        const error = new Error(countError);
-        error.status = 400;
-        throw error;
+        throw new HttpError(countError, 400);
       }
 
       if (!isValidDateString(sellDate)) {
-        const error = new Error('"sellDate" must be of the form "YYYY-MM-DD"');
-        error.status = 400;
-        throw error;
+        throw new HttpError('"sellDate" must be of the form "YYYY-MM-DD"', 400);
       }
 
       const existingBananas = await readBananas(databasePath);
-      const soldBananas = [];
+      const soldBananas: Banana[] = [];
 
       for (const banana of existingBananas) {
         if (soldBananas.length === number) {
@@ -114,4 +135,4 @@ function createBananaStore(databasePath) {
   };
 }
 
-module.exports = { createBananaStore };
+export { createBananaStore };

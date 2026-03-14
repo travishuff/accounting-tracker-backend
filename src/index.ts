@@ -1,9 +1,10 @@
-const { writeFile } = require('node:fs/promises');
+import { writeFile } from 'node:fs/promises';
+import type { Server } from 'node:http';
 
-const { createApp } = require('./app');
-const { getConfig } = require('./config');
+import { createApp } from './app';
+import { getConfig } from './config';
 
-async function startServer() {
+async function startServer(): Promise<Server> {
   const { databasePath, port } = getConfig();
 
   await writeFile(databasePath, '[]\n');
@@ -22,4 +23,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { startServer };
+export { startServer };

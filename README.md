@@ -31,9 +31,13 @@ Node.js `18+`
 
 From the repo root: `npm install`
 
+## Build
+
+From the repo root: `npm run build`
+
 ## Run
 
-From the repo root: `npm start`
+From the repo root: `npm start` (after running `npm run build`)
 
 For local development with automatic restarts: `npm run dev`
 
@@ -42,3 +46,9 @@ The server listens on port `8080` by default.
 ## Test
 
 Run `npm test`
+
+## Linting and Formatting
+
+Run `npm run lint` to lint the code.
+
+Run `npm run format` to apply Prettier formatting.
