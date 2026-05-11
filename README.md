@@ -21,7 +21,7 @@ Bananas are stored in this shape:
 }
 ```
 
-The backing JSON file is reset on server startup so each run starts from a clean state.
+Bananas are persisted to a local SQLite database (`bananas.db` by default; configurable via `DATABASE_PATH`). The table is truncated on server startup so each run starts from a clean state.
 
 ## Requirements
 

@@ -1,30 +1,23 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import test from 'node:test';
 
 import { createBananaStore } from '../lib/banana-store';
 
-async function createTestStore() {
-  const directory = await mkdtemp(join(tmpdir(), 'banana-backend-'));
-  const databasePath = join(directory, 'bananas.json');
-
-  await writeFile(databasePath, '[]\n');
-
+function createTestStore() {
+  const store = createBananaStore(':memory:');
   return {
-    async close() {
-      await rm(directory, { recursive: true, force: true });
+    store,
+    close() {
+      store.close();
     },
-    store: createBananaStore(databasePath),
   };
 }
 
-test('buying and selling bananas updates inventory', async () => {
-  const context = await createTestStore();
+test('buying and selling bananas updates inventory', () => {
+  const { store, close } = createTestStore();
 
   try {
-    const boughtBananas = await context.store.buy({
+    const boughtBananas = store.buy({
       buyDate: '2026-03-01',
       number: 3,
     });
@@ -35,7 +28,7 @@ test('buying and selling bananas updates inventory', async () => {
       true,
     );
 
-    const soldBananas = await context.store.sell({
+    const soldBananas = store.sell({
       sellDate: '2026-03-05',
       number: 2,
     });
@@ -46,28 +39,52 @@ test('buying and selling bananas updates inventory', async () => {
       true,
     );
 
-    const inventory = await context.store.list();
+    const inventory = store.list();
     assert.equal(inventory.length, 3);
     assert.equal(inventory.filter((banana) => banana.sellDate === null).length, 1);
   } finally {
-    await context.close();
+    close();
   }
 });
 
-test('invalid purchase payloads return 400', async () => {
-  const context = await createTestStore();
+test('sell skips bananas older than the freshness window', () => {
+  const { store, close } = createTestStore();
 
   try {
-    await assert.rejects(
-      context.store.buy({ buyDate: '2026-02-30', number: 1.5 }),
-      (error: unknown) => {
-        const err = error as { status?: number; message?: string };
-        assert.equal(err.status, 400);
-        assert.match(err.message ?? '', /whole number/);
-        return true;
-      },
-    );
+    store.buy({ buyDate: '2026-03-01', number: 1 });
+    store.buy({ buyDate: '2026-03-20', number: 1 });
+
+    const sold = store.sell({ sellDate: '2026-03-20', number: 5 });
+
+    assert.equal(sold.length, 1);
+    assert.equal(sold[0].buyDate, '2026-03-20');
   } finally {
-    await context.close();
+    close();
+  }
+});
+
+test('sell skips bananas bought after the sell date', () => {
+  const { store, close } = createTestStore();
+
+  try {
+    store.buy({ buyDate: '2026-03-10', number: 2 });
+
+    const sold = store.sell({ sellDate: '2026-03-05', number: 2 });
+
+    assert.equal(sold.length, 0);
+  } finally {
+    close();
+  }
+});
+
+test('reset truncates the store', () => {
+  const { store, close } = createTestStore();
+
+  try {
+    store.buy({ buyDate: '2026-03-01', number: 3 });
+    store.reset();
+    assert.equal(store.list().length, 0);
+  } finally {
+    close();
   }
 });

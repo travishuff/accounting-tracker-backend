@@ -1,19 +1,20 @@
 import { Request, Response, Router } from 'express';
 
+import { BananaStore } from '../lib/banana-store';
 import { createBananaRouter } from './bananas';
 
 type RouteConfig = {
-  databasePath: string;
+  store: BananaStore;
 };
 
-function createRoutes({ databasePath }: RouteConfig) {
+function createRoutes({ store }: RouteConfig) {
   const router = Router();
 
-  router.get('/', (req: Request, res: Response) => {
+  router.get('/', (_req: Request, res: Response) => {
     res.json({ status: 'ok' });
   });
 
-  router.use('/bananas', createBananaRouter({ databasePath }));
+  router.use('/bananas', createBananaRouter({ store }));
 
   return router;
 }
