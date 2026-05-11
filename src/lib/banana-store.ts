@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+
+import Database from 'better-sqlite3';
 
 type Banana = {
   id: string;
@@ -17,122 +18,98 @@ type SellInput = {
   number: number;
 };
 
-type BananaStore = {
-  list: () => Promise<Banana[]>;
-  buy: (input: BuyInput) => Promise<Banana[]>;
-  sell: (input: SellInput) => Promise<Banana[]>;
+type BananaRow = {
+  id: string;
+  buy_date: string;
+  sell_date: string | null;
 };
 
-class HttpError extends Error {
-  status: number;
+type BananaStore = {
+  list: () => Banana[];
+  buy: (input: BuyInput) => Banana[];
+  sell: (input: SellInput) => Banana[];
+  reset: () => void;
+  close: () => void;
+};
 
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+const FRESHNESS_DAYS = 10;
 
-function isValidDateString(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  );
-}
-
-function daysBetween(start: string, end: string): number {
-  const startDate = new Date(`${start}T00:00:00Z`);
-  const endDate = new Date(`${end}T00:00:00Z`);
-
-  return Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000);
-}
-
-async function readBananas(databasePath: string): Promise<Banana[]> {
-  const data = await readFile(databasePath, 'utf8');
-  return JSON.parse(data) as Banana[];
-}
-
-async function writeBananas(databasePath: string, bananas: Banana[]): Promise<void> {
-  await writeFile(databasePath, JSON.stringify(bananas, null, 2));
-}
-
-function validateCount(number: number): string | null {
-  if (!Number.isInteger(number)) {
-    return '"number" must be a whole number';
-  }
-
-  if (number < 1 || number > 50) {
-    return '1-50 bananas per order';
-  }
-
-  return null;
+function rowToBanana(row: BananaRow): Banana {
+  return {
+    id: row.id,
+    buyDate: row.buy_date,
+    sellDate: row.sell_date,
+  };
 }
 
 function createBananaStore(databasePath: string): BananaStore {
+  const db = new Database(databasePath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bananas (
+      id TEXT PRIMARY KEY,
+      buy_date TEXT NOT NULL,
+      sell_date TEXT
+    );
+  `);
+
+  const listStmt = db.prepare<[], BananaRow>('SELECT id, buy_date, sell_date FROM bananas ORDER BY rowid');
+  const insertStmt = db.prepare<[string, string]>('INSERT INTO bananas (id, buy_date, sell_date) VALUES (?, ?, NULL)');
+  const findSellableStmt = db.prepare<[string, string, number], BananaRow>(`
+    SELECT id, buy_date, sell_date FROM bananas
+    WHERE sell_date IS NULL
+      AND buy_date <= ?
+      AND CAST(julianday(?) - julianday(buy_date) AS INTEGER) < ${FRESHNESS_DAYS}
+    ORDER BY rowid
+    LIMIT ?
+  `);
+  const markSoldStmt = db.prepare<[string, string]>('UPDATE bananas SET sell_date = ? WHERE id = ?');
+  const truncateStmt = db.prepare('DELETE FROM bananas');
+
+  const buyTxn = db.transaction((buyDate: string, count: number): Banana[] => {
+    const created: Banana[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const id = randomUUID();
+      insertStmt.run(id, buyDate);
+      created.push({ id, buyDate, sellDate: null });
+    }
+    return created;
+  });
+
+  const sellTxn = db.transaction((sellDate: string, count: number): Banana[] => {
+    const candidates = findSellableStmt.all(sellDate, sellDate, count);
+    const sold: Banana[] = [];
+    for (const row of candidates) {
+      markSoldStmt.run(sellDate, row.id);
+      sold.push({ id: row.id, buyDate: row.buy_date, sellDate });
+    }
+    return sold;
+  });
+
   return {
-    async list() {
-      return readBananas(databasePath);
+    list() {
+      return listStmt.all().map(rowToBanana);
     },
 
-    async buy({ buyDate, number }: BuyInput) {
-      const countError = validateCount(number);
-      if (countError) {
-        throw new HttpError(countError, 400);
-      }
-
-      if (!isValidDateString(buyDate)) {
-        throw new HttpError('"buyDate" must be of the form "YYYY-MM-DD"', 400);
-      }
-
-      const bananas = Array.from({ length: number }, () => ({
-        id: randomUUID(),
-        buyDate,
-        sellDate: null,
-      }));
-
-      const existingBananas = await readBananas(databasePath);
-      await writeBananas(databasePath, [...existingBananas, ...bananas]);
-
-      return bananas;
+    buy({ buyDate, number }: BuyInput) {
+      return buyTxn(buyDate, number);
     },
 
-    async sell({ sellDate, number }: SellInput) {
-      const countError = validateCount(number);
-      if (countError) {
-        throw new HttpError(countError, 400);
-      }
+    sell({ sellDate, number }: SellInput) {
+      return sellTxn(sellDate, number);
+    },
 
-      if (!isValidDateString(sellDate)) {
-        throw new HttpError('"sellDate" must be of the form "YYYY-MM-DD"', 400);
-      }
+    reset() {
+      truncateStmt.run();
+    },
 
-      const existingBananas = await readBananas(databasePath);
-      const soldBananas: Banana[] = [];
-
-      for (const banana of existingBananas) {
-        if (soldBananas.length === number) {
-          break;
-        }
-
-        if (
-          banana.sellDate === null &&
-          banana.buyDate <= sellDate &&
-          daysBetween(banana.buyDate, sellDate) < 10
-        ) {
-          banana.sellDate = sellDate;
-          soldBananas.push(banana);
-        }
-      }
-
-      await writeBananas(databasePath, existingBananas);
-      return soldBananas;
+    close() {
+      db.close();
     },
   };
 }
 
 export { createBananaStore };
+export type { Banana, BananaStore, BuyInput, SellInput };

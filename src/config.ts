@@ -8,7 +8,7 @@ type AppConfig = {
 function getConfig(): AppConfig {
   return {
     port: Number(process.env.PORT) || 8080,
-    databasePath: process.env.DATABASE_PATH || join(process.cwd(), 'bananas.json'),
+    databasePath: process.env.DATABASE_PATH || join(process.cwd(), 'bananas.db'),
   };
 }
 

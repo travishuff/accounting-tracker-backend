@@ -1,38 +1,37 @@
 import { Request, Response, Router } from 'express';
+import { ZodType } from 'zod';
 
-import { createBananaStore } from '../lib/banana-store';
+import { BananaStore } from '../lib/banana-store';
+import { HttpError } from '../lib/http-error';
+import { buySchema, sellSchema } from '../lib/schemas';
 
 type BananaRouteConfig = {
-  databasePath: string;
+  store: BananaStore;
 };
 
-type BuyPayload = {
-  buyDate: string;
-  number: number;
-};
+function parseBody<T>(schema: ZodType<T>, body: unknown): T {
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    throw new HttpError(result.error.issues[0]?.message ?? 'Invalid request body', 400);
+  }
+  return result.data;
+}
 
-type SellPayload = {
-  sellDate: string;
-  number: number;
-};
-
-function createBananaRouter({ databasePath }: BananaRouteConfig) {
+function createBananaRouter({ store }: BananaRouteConfig) {
   const router = Router();
-  const store = createBananaStore(databasePath);
 
-  router.get('/', async (req: Request, res: Response) => {
-    const bananas = await store.list();
-    res.status(200).json(bananas);
+  router.get('/', (_req: Request, res: Response) => {
+    res.status(200).json(store.list());
   });
 
-  router.post('/', async (req: Request, res: Response) => {
-    const bananas = await store.buy(req.body as BuyPayload);
-    res.status(201).json(bananas);
+  router.post('/', (req: Request, res: Response) => {
+    const payload = parseBody(buySchema, req.body);
+    res.status(201).json(store.buy(payload));
   });
 
-  router.put('/', async (req: Request, res: Response) => {
-    const bananas = await store.sell(req.body as SellPayload);
-    res.status(200).json(bananas);
+  router.put('/', (req: Request, res: Response) => {
+    const payload = parseBody(sellSchema, req.body);
+    res.status(200).json(store.sell(payload));
   });
 
   return router;

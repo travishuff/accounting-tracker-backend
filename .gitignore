@@ -1,4 +1,7 @@
 node_modules
-bananas.json
+bananas.db
+bananas.db-journal
+bananas.db-wal
+bananas.db-shm
 dist
 dist-test
