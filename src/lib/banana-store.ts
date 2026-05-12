@@ -28,7 +28,6 @@ type BananaStore = {
   list: () => Banana[];
   buy: (input: BuyInput) => Banana[];
   sell: (input: SellInput) => Banana[];
-  reset: () => void;
   close: () => void;
 };
 
@@ -66,7 +65,6 @@ function createBananaStore(databasePath: string): BananaStore {
     LIMIT ?
   `);
   const markSoldStmt = db.prepare<[string, string]>('UPDATE bananas SET sell_date = ? WHERE id = ?');
-  const truncateStmt = db.prepare('DELETE FROM bananas');
 
   const buyTxn = db.transaction((buyDate: string, count: number): Banana[] => {
     const created: Banana[] = [];
@@ -99,10 +97,6 @@ function createBananaStore(databasePath: string): BananaStore {
 
     sell({ sellDate, number }: SellInput) {
       return sellTxn(sellDate, number);
-    },
-
-    reset() {
-      truncateStmt.run();
     },
 
     close() {
