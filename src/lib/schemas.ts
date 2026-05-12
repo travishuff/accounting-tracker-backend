@@ -14,7 +14,7 @@ const isoDate = z
   }, 'must be a real calendar date');
 
 const count = z
-  .number({ error: '"number" must be a whole number' })
+  .number()
   .int('"number" must be a whole number')
   .min(1, '1-50 bananas per order')
   .max(50, '1-50 bananas per order');

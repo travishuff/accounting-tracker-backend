@@ -1,54 +1,216 @@
-# Backend
+# Banana Backend
 
-This service exposes a small banana inventory API under `/api`.
+A small Express + TypeScript service that tracks a banana inventory. It exposes a JSON API under `/api` and persists data to a local SQLite database.
 
-## Routes
+The companion frontend lives at `banana-tracker`.
 
-1. `GET /api/bananas`
-   Returns all bananas in the database.
-2. `POST /api/bananas`
-   Accepts `number` and `buyDate` (`YYYY-MM-DD`) in the request body and returns the newly purchased bananas.
-3. `PUT /api/bananas`
-   Accepts `number` and `sellDate` (`YYYY-MM-DD`) in the request body and returns the bananas sold by the request.
+## Stack
 
-Bananas are stored in this shape:
-
-```json
-{
-  "id": "f3a6c6bb-b97e-4639-abea-f91cdf7b0444",
-  "buyDate": "YYYY-MM-DD",
-  "sellDate": null
-}
-```
-
-Bananas are persisted to a local SQLite database (`bananas.db` by default; configurable via `DATABASE_PATH`). The table is truncated on server startup so each run starts from a clean state.
+- Node.js (18+)
+- Express 5
+- TypeScript 5
+- SQLite via `better-sqlite3`
+- `zod` for request validation
+- `node:test` for the test runner
 
 ## Requirements
 
-Node.js `18+`
+- Node.js `>=18`
+- No external services — SQLite runs in-process and writes to a local file
 
-## Install
+## Quick start
 
-From the repo root: `npm install`
+```bash
+npm install
+npm run dev
+```
 
-## Build
+The dev server runs on `http://localhost:8080` and restarts on save (via `tsx watch`). On first run it creates `bananas.db` in the repo root.
 
-From the repo root: `npm run build`
+## Configuration
 
-## Run
+Configuration is read from environment variables at startup:
 
-From the repo root: `npm start` (after running `npm run build`)
+| Variable        | Default                | Description                                |
+| --------------- | ---------------------- | ------------------------------------------ |
+| `PORT`          | `8080`                 | TCP port the HTTP server binds to          |
+| `DATABASE_PATH` | `./bananas.db`         | Path to the SQLite database file           |
 
-For local development with automatic restarts: `npm run dev`
+To start fresh, stop the server and delete the database file:
 
-The server listens on port `8080` by default.
+```bash
+rm bananas.db bananas.db-wal bananas.db-shm
+```
 
-## Test
+## Scripts
 
-Run `npm test`
+| Command            | Description                                                     |
+| ------------------ | --------------------------------------------------------------- |
+| `npm run dev`      | Run the server with `tsx watch` (live reload, no build step)    |
+| `npm run build`    | Compile TypeScript to `dist/`                                   |
+| `npm start`        | Build, then run the compiled output (`node dist/index.js`)      |
+| `npm test`         | Compile tests to `dist-test/` and run with `node --test`        |
+| `npm run lint`     | Run ESLint over the project                                     |
+| `npm run format`   | Apply Prettier formatting                                       |
+| `npm run format:check` | Check formatting without writing                            |
 
-## Linting and Formatting
+## API
 
-Run `npm run lint` to lint the code.
+All endpoints live under `/api`. All requests and responses are `application/json`.
 
-Run `npm run format` to apply Prettier formatting.
+### `GET /api`
+
+Health check.
+
+**Response — 200**
+
+```json
+{ "status": "ok" }
+```
+
+### `GET /api/bananas`
+
+List every banana in the database, sorted by insertion order.
+
+**Response — 200**
+
+```json
+[
+  {
+    "id": "f3a6c6bb-b97e-4639-abea-f91cdf7b0444",
+    "buyDate": "2026-05-10",
+    "sellDate": null
+  }
+]
+```
+
+### `POST /api/bananas` — buy
+
+Purchase `number` bananas, all dated `buyDate`. Each banana is assigned a fresh UUID.
+
+**Request body**
+
+```json
+{
+  "buyDate": "2026-05-10",
+  "number": 5
+}
+```
+
+**Response — 201**
+
+Returns only the bananas created by this request (not the full inventory):
+
+```json
+[
+  { "id": "…", "buyDate": "2026-05-10", "sellDate": null },
+  { "id": "…", "buyDate": "2026-05-10", "sellDate": null }
+]
+```
+
+### `PUT /api/bananas` — sell
+
+Sell up to `number` bananas with sell date `sellDate`. The server picks eligible bananas in insertion order and marks them sold. A banana is **eligible** when:
+
+- it has not already been sold (`sellDate` is `null`), and
+- its `buyDate` is on or before `sellDate`, and
+- fewer than 10 days have elapsed between `buyDate` and `sellDate` (the freshness window).
+
+**Request body**
+
+```json
+{
+  "sellDate": "2026-05-12",
+  "number": 3
+}
+```
+
+**Response — 200**
+
+Returns the bananas that were actually sold. If fewer than `number` bananas were eligible, the response contains fewer entries — the request still returns `200`. (See [Known sharp edges](#known-sharp-edges).)
+
+```json
+[
+  { "id": "…", "buyDate": "2026-05-10", "sellDate": "2026-05-12" }
+]
+```
+
+## Data model
+
+A banana has exactly three fields:
+
+| Field      | Type               | Description                                                 |
+| ---------- | ------------------ | ----------------------------------------------------------- |
+| `id`       | `string` (UUID v4) | Server-assigned, stable for the lifetime of the banana      |
+| `buyDate`  | `string`           | ISO date, `YYYY-MM-DD`                                      |
+| `sellDate` | `string \| null`   | ISO date once sold; `null` while in inventory               |
+
+## Validation
+
+Request bodies are validated at the route boundary with `zod`. The constraints are:
+
+- `number` — integer in `[1, 50]`
+- `buyDate` / `sellDate` — string matching `^\d{4}-\d{2}-\d{2}$` **and** a real calendar date (`2026-02-30` is rejected)
+
+## Error responses
+
+Every error response uses the same envelope:
+
+```json
+{ "error": "1-50 bananas per order" }
+```
+
+Status codes returned by the API:
+
+| Status | When                                                                      |
+| ------ | ------------------------------------------------------------------------- |
+| `400`  | Request body fails zod validation (bad type, out of range, malformed date) |
+| `404`  | Unknown route                                                              |
+| `500`  | Unhandled server error                                                    |
+
+## Storage
+
+Data is persisted to a single SQLite file (`bananas.db` by default). The `bananas` table is created on first startup if it doesn't exist, and survives server restarts. WAL journaling is enabled, so you may see `bananas.db-wal` and `bananas.db-shm` sidecar files — all three are git-ignored.
+
+Concurrency is handled at the database layer. The `buy` and `sell` operations run inside a SQLite transaction, so overlapping HTTP requests cannot corrupt the store or interleave a partial sell.
+
+## Project layout
+
+```
+src/
+  app.ts              Express app construction + error middleware
+  config.ts           Environment-driven config (PORT, DATABASE_PATH)
+  index.ts            Process entry point: constructs the store and starts the server
+  lib/
+    banana-store.ts   SQLite-backed inventory store (buy, sell, list)
+    format-issue.ts   Maps zod issues to user-facing error messages
+    http-error.ts     Shared HttpError class for status-bearing errors
+    schemas.ts        zod request schemas (buySchema, sellSchema)
+  routes/
+    index.ts          Mounts the /api router
+    bananas.ts        GET / POST / PUT handlers for /api/bananas
+  test/
+    api.test.ts       Store behavior + persistence regression tests
+    schemas.test.ts   Validation schema tests
+```
+
+## Testing
+
+```bash
+npm test
+```
+
+Tests use in-memory SQLite (`:memory:`) for isolation. The persistence regression test writes to a temporary file to verify that data survives reopening the same database.
+
+## Linting and formatting
+
+```bash
+npm run lint          # eslint
+npm run format        # prettier --write
+npm run format:check  # prettier --check
+```
+
+## Known sharp edges
+
+- `PUT /api/bananas` may return fewer bananas than requested (or zero) with a `200`. The caller has to compare the returned array length to the requested `number` to detect a short fill.
+- The semantically correct verb for "sell" is `POST` against a sub-resource (e.g. `POST /api/bananas/sales`), not `PUT`. The current route shape predates this README.

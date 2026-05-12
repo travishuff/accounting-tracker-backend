@@ -8,7 +8,6 @@ function startServer(): Server {
   const { databasePath, port } = getConfig();
 
   const store = createBananaStore(databasePath);
-  store.reset();
 
   const app = createApp({ store });
 

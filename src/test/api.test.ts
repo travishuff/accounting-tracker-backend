@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import { createBananaStore } from '../lib/banana-store';
@@ -77,14 +80,26 @@ test('sell skips bananas bought after the sell date', () => {
   }
 });
 
-test('reset truncates the store', () => {
-  const { store, close } = createTestStore();
+test('data persists across store instances on the same file', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'banana-backend-'));
+  const databasePath = join(directory, 'bananas.db');
 
   try {
-    store.buy({ buyDate: '2026-03-01', number: 3 });
-    store.reset();
-    assert.equal(store.list().length, 0);
+    const first = createBananaStore(databasePath);
+    first.buy({ buyDate: '2026-03-01', number: 4 });
+    first.sell({ sellDate: '2026-03-05', number: 2 });
+    first.close();
+
+    const second = createBananaStore(databasePath);
+    try {
+      const inventory = second.list();
+      assert.equal(inventory.length, 4);
+      assert.equal(inventory.filter((banana) => banana.sellDate === null).length, 2);
+      assert.equal(inventory.filter((banana) => banana.sellDate === '2026-03-05').length, 2);
+    } finally {
+      second.close();
+    }
   } finally {
-    close();
+    await rm(directory, { recursive: true, force: true });
   }
 });

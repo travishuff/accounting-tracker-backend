@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express';
 import { ZodType } from 'zod';
 
 import { BananaStore } from '../lib/banana-store';
+import { formatIssue } from '../lib/format-issue';
 import { HttpError } from '../lib/http-error';
 import { buySchema, sellSchema } from '../lib/schemas';
 
@@ -12,7 +13,8 @@ type BananaRouteConfig = {
 function parseBody<T>(schema: ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
   if (!result.success) {
-    throw new HttpError(result.error.issues[0]?.message ?? 'Invalid request body', 400);
+    const issue = result.error.issues[0];
+    throw new HttpError(issue ? formatIssue(issue, body) : 'Invalid request body', 400);
   }
   return result.data;
 }
