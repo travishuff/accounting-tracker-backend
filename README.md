@@ -31,10 +31,12 @@ The dev server runs on `http://localhost:8080` and restarts on save (via `tsx wa
 
 Configuration is read from environment variables at startup:
 
-| Variable        | Default        | Description                       |
-| --------------- | -------------- | --------------------------------- |
-| `PORT`          | `8080`         | TCP port the HTTP server binds to |
-| `DATABASE_PATH` | `./bananas.db` | Path to the SQLite database file  |
+| Variable        | Default        | Description                                   |
+| --------------- | -------------- | --------------------------------------------- |
+| `PORT`          | `8080`         | TCP port the HTTP server binds to (`1-65535`) |
+| `DATABASE_PATH` | `./bananas.db` | Path to the SQLite database file              |
+
+Invalid configuration fails fast during startup. `PORT` must be an integer from `1` to `65535`, and `DATABASE_PATH` cannot be empty.
 
 To start fresh, stop the server and delete the database file:
 
@@ -164,12 +166,12 @@ Every error response uses the same envelope:
 
 Status codes returned by the API:
 
-| Status | When                                                                       |
-| ------ | -------------------------------------------------------------------------- |
-| `400`  | Request body fails zod validation (bad type, out of range, malformed date) |
-| `404`  | Unknown route                                                              |
-| `409`  | `POST /api/bananas/sales` requested more bananas than were eligible        |
-| `500`  | Unhandled server error                                                     |
+| Status | When                                                                                   |
+| ------ | -------------------------------------------------------------------------------------- |
+| `400`  | Request body fails zod validation (bad type, out of range, malformed date)             |
+| `404`  | Unknown route                                                                          |
+| `409`  | `POST /api/bananas/sales` requested more bananas than were eligible                    |
+| `500`  | Unhandled server error. Response body uses the generic message `Internal Server Error` |
 
 ## Storage
 
