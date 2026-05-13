@@ -1,5 +1,5 @@
 {
-  "name": "banans-backend",
+  "name": "banana-backend",
   "version": "1.0.0",
   "description": "Simple banana inventory backend",
   "main": "dist/index.js",
@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",

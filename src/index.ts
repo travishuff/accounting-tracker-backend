@@ -11,9 +11,26 @@ function startServer(): Server {
 
   const app = createApp({ store });
 
-  return app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
   });
+  server.once('close', () => {
+    store.close();
+  });
+
+  const shutdown = () => {
+    server.close((error) => {
+      if (error) {
+        console.error('Failed to stop server cleanly', error);
+        process.exitCode = 1;
+      }
+    });
+  };
+
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
+
+  return server;
 }
 
 if (require.main === module) {

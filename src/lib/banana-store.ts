@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import Database from 'better-sqlite3';
 
-import { HttpError } from './http-error';
+import { InsufficientEligibleInventoryError } from './inventory-errors';
 
 type Banana = {
   id: string;
@@ -87,10 +87,7 @@ function createBananaStore(databasePath: string): BananaStore {
   const sellTxn = db.transaction((sellDate: string, count: number): Banana[] => {
     const candidates = findSellableStmt.all(sellDate, sellDate, count);
     if (candidates.length < count) {
-      throw new HttpError(
-        `Only ${candidates.length} banana(s) eligible to sell on ${sellDate}, requested ${count}`,
-        409,
-      );
+      throw new InsufficientEligibleInventoryError(candidates.length, count, sellDate);
     }
     const sold: Banana[] = [];
     for (const row of candidates) {

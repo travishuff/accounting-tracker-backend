@@ -69,6 +69,53 @@ test('sell skips bananas older than the freshness window', () => {
   }
 });
 
+test('sell includes bananas that are nine days old', () => {
+  const { store, close } = createTestStore();
+
+  try {
+    store.buy({ buyDate: '2026-03-01', number: 1 });
+
+    const sold = store.sell({ sellDate: '2026-03-10', number: 1 });
+
+    assert.equal(sold.length, 1);
+    assert.equal(sold[0].buyDate, '2026-03-01');
+  } finally {
+    close();
+  }
+});
+
+test('sell excludes bananas that are exactly ten days old', () => {
+  const { store, close } = createTestStore();
+
+  try {
+    store.buy({ buyDate: '2026-03-01', number: 1 });
+
+    assert.throws(
+      () => store.sell({ sellDate: '2026-03-11', number: 1 }),
+      (err: Error) => err.name === 'InsufficientEligibleInventoryError',
+    );
+  } finally {
+    close();
+  }
+});
+
+test('sell chooses eligible bananas in insertion order and does not resell sold inventory', () => {
+  const { store, close } = createTestStore();
+
+  try {
+    const [first] = store.buy({ buyDate: '2026-03-01', number: 1 });
+    const [second] = store.buy({ buyDate: '2026-03-02', number: 1 });
+
+    const firstSale = store.sell({ sellDate: '2026-03-03', number: 1 });
+    const secondSale = store.sell({ sellDate: '2026-03-03', number: 1 });
+
+    assert.equal(firstSale[0].id, first.id);
+    assert.equal(secondSale[0].id, second.id);
+  } finally {
+    close();
+  }
+});
+
 test('sell rejects requests larger than the eligible inventory', () => {
   const { store, close } = createTestStore();
 

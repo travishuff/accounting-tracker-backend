@@ -35,6 +35,6 @@ module.exports = [
   },
   eslintConfigPrettier,
   {
-    ignores: ['dist/**', 'dist-test/**', 'node_modules/**'],
+    ignores: ['.claude/**', 'dist/**', 'dist-test/**', 'node_modules/**'],
   },
 ];
