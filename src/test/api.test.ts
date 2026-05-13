@@ -57,24 +57,47 @@ test('sell skips bananas older than the freshness window', () => {
     store.buy({ buyDate: '2026-03-01', number: 1 });
     store.buy({ buyDate: '2026-03-20', number: 1 });
 
-    const sold = store.sell({ sellDate: '2026-03-20', number: 5 });
+    const sold = store.sell({ sellDate: '2026-03-20', number: 1 });
 
     assert.equal(sold.length, 1);
     assert.equal(sold[0].buyDate, '2026-03-20');
+
+    const inventory = store.list();
+    assert.equal(inventory.filter((banana) => banana.sellDate === null).length, 1);
   } finally {
     close();
   }
 });
 
-test('sell skips bananas bought after the sell date', () => {
+test('sell rejects requests larger than the eligible inventory', () => {
+  const { store, close } = createTestStore();
+
+  try {
+    store.buy({ buyDate: '2026-03-01', number: 1 });
+    store.buy({ buyDate: '2026-03-20', number: 1 });
+
+    assert.throws(
+      () => store.sell({ sellDate: '2026-03-20', number: 5 }),
+      (err: Error) => err.message.includes('eligible to sell'),
+    );
+
+    const inventory = store.list();
+    assert.equal(inventory.filter((banana) => banana.sellDate === null).length, 2);
+  } finally {
+    close();
+  }
+});
+
+test('sell rejects when no bananas are eligible on the sell date', () => {
   const { store, close } = createTestStore();
 
   try {
     store.buy({ buyDate: '2026-03-10', number: 2 });
 
-    const sold = store.sell({ sellDate: '2026-03-05', number: 2 });
-
-    assert.equal(sold.length, 0);
+    assert.throws(
+      () => store.sell({ sellDate: '2026-03-05', number: 2 }),
+      (err: Error) => err.message.includes('eligible to sell'),
+    );
   } finally {
     close();
   }

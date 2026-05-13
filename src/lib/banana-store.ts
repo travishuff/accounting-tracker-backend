@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import Database from 'better-sqlite3';
 
+import { HttpError } from './http-error';
+
 type Banana = {
   id: string;
   buyDate: string;
@@ -54,8 +56,12 @@ function createBananaStore(databasePath: string): BananaStore {
     );
   `);
 
-  const listStmt = db.prepare<[], BananaRow>('SELECT id, buy_date, sell_date FROM bananas ORDER BY rowid');
-  const insertStmt = db.prepare<[string, string]>('INSERT INTO bananas (id, buy_date, sell_date) VALUES (?, ?, NULL)');
+  const listStmt = db.prepare<[], BananaRow>(
+    'SELECT id, buy_date, sell_date FROM bananas ORDER BY rowid',
+  );
+  const insertStmt = db.prepare<[string, string]>(
+    'INSERT INTO bananas (id, buy_date, sell_date) VALUES (?, ?, NULL)',
+  );
   const findSellableStmt = db.prepare<[string, string, number], BananaRow>(`
     SELECT id, buy_date, sell_date FROM bananas
     WHERE sell_date IS NULL
@@ -64,7 +70,9 @@ function createBananaStore(databasePath: string): BananaStore {
     ORDER BY rowid
     LIMIT ?
   `);
-  const markSoldStmt = db.prepare<[string, string]>('UPDATE bananas SET sell_date = ? WHERE id = ?');
+  const markSoldStmt = db.prepare<[string, string]>(
+    'UPDATE bananas SET sell_date = ? WHERE id = ?',
+  );
 
   const buyTxn = db.transaction((buyDate: string, count: number): Banana[] => {
     const created: Banana[] = [];
@@ -78,6 +86,12 @@ function createBananaStore(databasePath: string): BananaStore {
 
   const sellTxn = db.transaction((sellDate: string, count: number): Banana[] => {
     const candidates = findSellableStmt.all(sellDate, sellDate, count);
+    if (candidates.length < count) {
+      throw new HttpError(
+        `Only ${candidates.length} banana(s) eligible to sell on ${sellDate}, requested ${count}`,
+        409,
+      );
+    }
     const sold: Banana[] = [];
     for (const row of candidates) {
       markSoldStmt.run(sellDate, row.id);
