@@ -1,4 +1,6 @@
 node_modules
+.claude
+.DS_Store
 bananas.db
 bananas.db-journal
 bananas.db-wal

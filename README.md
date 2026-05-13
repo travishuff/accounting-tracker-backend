@@ -6,7 +6,7 @@ The companion frontend lives at `banana-tracker`.
 
 ## Stack
 
-- Node.js (18+)
+- Node.js (20+)
 - Express 5
 - TypeScript 5
 - SQLite via `better-sqlite3`
@@ -15,7 +15,7 @@ The companion frontend lives at `banana-tracker`.
 
 ## Requirements
 
-- Node.js `>=18`
+- Node.js `>=20`
 - No external services — SQLite runs in-process and writes to a local file
 
 ## Quick start
@@ -31,10 +31,12 @@ The dev server runs on `http://localhost:8080` and restarts on save (via `tsx wa
 
 Configuration is read from environment variables at startup:
 
-| Variable        | Default        | Description                       |
-| --------------- | -------------- | --------------------------------- |
-| `PORT`          | `8080`         | TCP port the HTTP server binds to |
-| `DATABASE_PATH` | `./bananas.db` | Path to the SQLite database file  |
+| Variable        | Default        | Description                                   |
+| --------------- | -------------- | --------------------------------------------- |
+| `PORT`          | `8080`         | TCP port the HTTP server binds to (`1-65535`) |
+| `DATABASE_PATH` | `./bananas.db` | Path to the SQLite database file              |
+
+Invalid configuration fails fast during startup. `PORT` must be an integer from `1` to `65535`, and `DATABASE_PATH` cannot be empty.
 
 To start fresh, stop the server and delete the database file:
 
@@ -164,12 +166,12 @@ Every error response uses the same envelope:
 
 Status codes returned by the API:
 
-| Status | When                                                                       |
-| ------ | -------------------------------------------------------------------------- |
-| `400`  | Request body fails zod validation (bad type, out of range, malformed date) |
-| `404`  | Unknown route                                                              |
-| `409`  | `POST /api/bananas/sales` requested more bananas than were eligible        |
-| `500`  | Unhandled server error                                                     |
+| Status | When                                                                                   |
+| ------ | -------------------------------------------------------------------------------------- |
+| `400`  | Request body fails zod validation (bad type, out of range, malformed date)             |
+| `404`  | Unknown route                                                                          |
+| `409`  | `POST /api/bananas/sales` requested more bananas than were eligible                    |
+| `500`  | Unhandled server error. Response body uses the generic message `Internal Server Error` |
 
 ## Storage
 
@@ -186,14 +188,17 @@ src/
   index.ts            Process entry point: constructs the store and starts the server
   lib/
     banana-store.ts   SQLite-backed inventory store (buy, sell, list)
-    format-issue.ts   Maps zod issues to user-facing error messages
     http-error.ts     Shared HttpError class for status-bearing errors
+    format-issue.ts   Maps zod issues to user-facing error messages
+    inventory-errors.ts Domain-level inventory errors
     schemas.ts        zod request schemas (buySchema, sellSchema)
   routes/
     index.ts          Mounts the /api router
     bananas.ts        Route handlers for /api/bananas (list, buy, sell)
   test/
     api.test.ts       Store behavior + persistence regression tests
+    config.test.ts    Environment config parsing tests
+    http.test.ts      Express route and error-envelope tests
     schemas.test.ts   Validation schema tests
 ```
 
@@ -203,7 +208,7 @@ src/
 npm test
 ```
 
-Tests use in-memory SQLite (`:memory:`) for isolation. The persistence regression test writes to a temporary file to verify that data survives reopening the same database.
+Tests use in-memory SQLite (`:memory:`) for isolation. The persistence regression test writes to a temporary file to verify that data survives reopening the same database. HTTP tests exercise the Express app in process, so they do not need to bind a local port.
 
 ## Linting and formatting
 
