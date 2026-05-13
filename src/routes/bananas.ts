@@ -31,9 +31,9 @@ function createBananaRouter({ store }: BananaRouteConfig) {
     res.status(201).json(store.buy(payload));
   });
 
-  router.put('/', (req: Request, res: Response) => {
+  router.post('/sales', (req: Request, res: Response) => {
     const payload = parseBody(sellSchema, req.body);
-    res.status(200).json(store.sell(payload));
+    res.status(201).json(store.sell(payload));
   });
 
   return router;
