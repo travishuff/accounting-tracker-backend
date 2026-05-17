@@ -1,8 +1,8 @@
-# Banana Backend
+# Accounting Tracker Backend
 
 A small Express + TypeScript service that tracks a banana inventory. It exposes a JSON API under `/api` and persists data to a local SQLite database.
 
-The companion frontend lives at [banana-tracker](https://github.com/travishuff/accounting-tracker).
+The companion frontend lives at [accounting-tracker](https://github.com/travishuff/accounting-tracker).
 
 ## Stack
 
