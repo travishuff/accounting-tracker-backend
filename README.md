@@ -2,11 +2,11 @@
 
 A small Express + TypeScript service that tracks a banana inventory. It exposes a JSON API under `/api` and persists data to a local SQLite database.
 
-The companion frontend lives at `banana-tracker`.
+The companion frontend lives at [banana-tracker](https://github.com/travishuff/accounting-tracker).
 
 ## Stack
 
-- Bun (1.3+)
+- Bun (>=1.3.10)
 - Express 5
 - TypeScript 5
 - SQLite via `bun:sqlite`
@@ -47,7 +47,7 @@ curl -X DELETE http://localhost:8080/api/database
 If you need to remove the SQLite file itself, stop the server and delete the database file:
 
 ```bash
-rm bananas.db bananas.db-wal bananas.db-shm
+rm -f bananas.db bananas.db-wal bananas.db-shm
 ```
 
 ## Scripts
@@ -194,29 +194,6 @@ Status codes returned by the API:
 Data is persisted to a single SQLite file (`bananas.db` by default). The `bananas` table is created on first startup if it doesn't exist, and survives server restarts. WAL journaling is enabled, so you may see `bananas.db-wal` and `bananas.db-shm` sidecar files — all three are git-ignored.
 
 Concurrency is handled at the database layer. The `buy` and `sell` operations run inside a SQLite transaction, so overlapping HTTP requests cannot corrupt the store or interleave a partial sell.
-
-## Project layout
-
-```
-src/
-  app.ts              Express app construction + error middleware
-  config.ts           Environment-driven config (PORT, DATABASE_PATH)
-  index.ts            Process entry point: constructs the store and starts the server
-  lib/
-    banana-store.ts   SQLite-backed inventory store (buy, sell, list, reset)
-    http-error.ts     Shared HttpError class for status-bearing errors
-    format-issue.ts   Maps zod issues to user-facing error messages
-    inventory-errors.ts Domain-level inventory errors
-    schemas.ts        zod request schemas (buySchema, sellSchema)
-  routes/
-    index.ts          Mounts the /api router and database reset endpoint
-    bananas.ts        Route handlers for /api/bananas (list, buy, sell)
-  test/
-    api.test.ts       Store behavior + persistence regression tests
-    config.test.ts    Environment config parsing tests
-    http.test.ts      Express route and error-envelope tests
-    schemas.test.ts   Validation schema tests
-```
 
 ## Testing
 
