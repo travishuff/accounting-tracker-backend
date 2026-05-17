@@ -38,7 +38,13 @@ Configuration is read from environment variables at startup:
 
 Invalid configuration fails fast during startup. `PORT` must be an integer from `1` to `65535`, and `DATABASE_PATH` cannot be empty.
 
-To start fresh, stop the server and delete the database file:
+To start fresh, call the reset endpoint:
+
+```bash
+curl -X DELETE http://localhost:8080/api/database
+```
+
+If you need to remove the SQLite file itself, stop the server and delete the database file:
 
 ```bash
 rm bananas.db bananas.db-wal bananas.db-shm
@@ -84,6 +90,16 @@ List every banana in the database, sorted by insertion order.
     "sellDate": null
   }
 ]
+```
+
+### `DELETE /api/database`
+
+Delete every banana record from the database. The SQLite database file remains in place.
+
+**Response — 200**
+
+```json
+{ "deleted": 12 }
 ```
 
 ### `POST /api/bananas` — buy
@@ -187,13 +203,13 @@ src/
   config.ts           Environment-driven config (PORT, DATABASE_PATH)
   index.ts            Process entry point: constructs the store and starts the server
   lib/
-    banana-store.ts   SQLite-backed inventory store (buy, sell, list)
+    banana-store.ts   SQLite-backed inventory store (buy, sell, list, reset)
     http-error.ts     Shared HttpError class for status-bearing errors
     format-issue.ts   Maps zod issues to user-facing error messages
     inventory-errors.ts Domain-level inventory errors
     schemas.ts        zod request schemas (buySchema, sellSchema)
   routes/
-    index.ts          Mounts the /api router
+    index.ts          Mounts the /api router and database reset endpoint
     bananas.ts        Route handlers for /api/bananas (list, buy, sell)
   test/
     api.test.ts       Store behavior + persistence regression tests

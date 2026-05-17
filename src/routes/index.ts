@@ -14,6 +14,10 @@ function createRoutes({ store }: RouteConfig) {
     res.json({ status: 'ok' });
   });
 
+  router.delete('/database', (_req: Request, res: Response) => {
+    res.status(200).json({ deleted: store.reset() });
+  });
+
   router.use('/bananas', createBananaRouter({ store }));
 
   return router;
