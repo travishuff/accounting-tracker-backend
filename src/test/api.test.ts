@@ -151,6 +151,23 @@ test('sell rejects when no bananas are eligible on the sell date', () => {
   }
 });
 
+test('reset deletes all bananas and returns the deleted count', () => {
+  const { store, close } = createTestStore();
+
+  try {
+    store.buy({ buyDate: '2026-03-01', number: 3 });
+    store.sell({ sellDate: '2026-03-03', number: 1 });
+
+    const deleted = store.reset();
+
+    assert.equal(deleted, 3);
+    assert.deepEqual(store.list(), []);
+    assert.equal(store.reset(), 0);
+  } finally {
+    close();
+  }
+});
+
 test('data persists across store instances on the same file', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'banana-backend-'));
   const databasePath = join(directory, 'bananas.db');

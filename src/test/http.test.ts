@@ -185,6 +185,24 @@ test('POST /api/bananas/sales maps insufficient eligible inventory to 409', asyn
   }
 });
 
+test('DELETE /api/database resets the store', async () => {
+  const client = createTestClient();
+
+  try {
+    await client.request('POST', '/api/bananas', { buyDate: '2026-03-01', number: 2 });
+
+    const resetResponse = await client.request('DELETE', '/api/database');
+    const listResponse = await client.request('GET', '/api/bananas');
+
+    assert.equal(resetResponse.status, 200);
+    assert.deepEqual(resetResponse.body, { deleted: 2 });
+    assert.equal(listResponse.status, 200);
+    assert.deepEqual(listResponse.body, []);
+  } finally {
+    client.close();
+  }
+});
+
 test('unknown routes return 404', async () => {
   const client = createTestClient();
 
@@ -207,6 +225,9 @@ test('unexpected errors return a generic 500 response', async () => {
       throw new Error('not used');
     },
     sell() {
+      throw new Error('not used');
+    },
+    reset() {
       throw new Error('not used');
     },
     close() {},

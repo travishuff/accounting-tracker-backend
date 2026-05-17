@@ -30,10 +30,15 @@ type BananaStore = {
   list: () => Banana[];
   buy: (input: BuyInput) => Banana[];
   sell: (input: SellInput) => Banana[];
+  reset: () => number;
   close: () => void;
 };
 
 const FRESHNESS_DAYS = 10;
+
+type CountRow = {
+  count: number;
+};
 
 function rowToBanana(row: BananaRow): Banana {
   return {
@@ -78,6 +83,8 @@ function createBananaStore(databasePath: string): BananaStore {
   const markSoldStmt = db.prepare<unknown, [string, string]>(
     'UPDATE bananas SET sell_date = ? WHERE id = ?',
   );
+  const countStmt = db.prepare<CountRow, []>('SELECT COUNT(*) AS count FROM bananas');
+  const resetStmt = db.prepare<unknown, []>('DELETE FROM bananas');
 
   const buyTxn = db.transaction((buyDate: string, count: number): Banana[] => {
     const created: Banana[] = [];
@@ -102,6 +109,11 @@ function createBananaStore(databasePath: string): BananaStore {
     }
     return sold;
   });
+  const resetTxn = db.transaction((): number => {
+    const row = countStmt.get();
+    resetStmt.run();
+    return row?.count ?? 0;
+  });
 
   return {
     list() {
@@ -114,6 +126,10 @@ function createBananaStore(databasePath: string): BananaStore {
 
     sell({ sellDate, number }: SellInput) {
       return sellTxn(sellDate, number);
+    },
+
+    reset() {
+      return resetTxn();
     },
 
     close() {
