@@ -6,26 +6,26 @@ The companion frontend lives at `banana-tracker`.
 
 ## Stack
 
-- Node.js (20+)
+- Bun (1.3+)
 - Express 5
 - TypeScript 5
-- SQLite via `better-sqlite3`
+- SQLite via `bun:sqlite`
 - `zod` for request validation
-- `node:test` for the test runner
+- Bun test runner
 
 ## Requirements
 
-- Node.js `>=20`
+- Bun `>=1.3.10`
 - No external services — SQLite runs in-process and writes to a local file
 
 ## Quick start
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
-The dev server runs on `http://localhost:8080` and restarts on save (via `tsx watch`). On first run it creates `bananas.db` in the repo root.
+The dev server runs on `http://localhost:8080` and restarts on save (via `bun --watch`). On first run it creates `bananas.db` in the repo root.
 
 ## Configuration
 
@@ -46,15 +46,15 @@ rm bananas.db bananas.db-wal bananas.db-shm
 
 ## Scripts
 
-| Command                | Description                                                  |
-| ---------------------- | ------------------------------------------------------------ |
-| `npm run dev`          | Run the server with `tsx watch` (live reload, no build step) |
-| `npm run build`        | Compile TypeScript to `dist/`                                |
-| `npm start`            | Build, then run the compiled output (`node dist/index.js`)   |
-| `npm test`             | Compile tests to `dist-test/` and run with `node --test`     |
-| `npm run lint`         | Run ESLint over the project                                  |
-| `npm run format`       | Apply Prettier formatting                                    |
-| `npm run format:check` | Check formatting without writing                             |
+| Command                | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `bun run dev`          | Run the server with Bun watch mode (live reload)    |
+| `bun run build`        | Compile TypeScript to `dist/`                       |
+| `bun start`            | Build, then run the compiled output with Bun        |
+| `bun run test`         | Type-check tests, then run them with the Bun runner |
+| `bun run lint`         | Run ESLint over the project                         |
+| `bun run format`       | Apply Prettier formatting                           |
+| `bun run format:check` | Check formatting without writing                    |
 
 ## API
 
@@ -205,7 +205,7 @@ src/
 ## Testing
 
 ```bash
-npm test
+bun run test
 ```
 
 Tests use in-memory SQLite (`:memory:`) for isolation. The persistence regression test writes to a temporary file to verify that data survives reopening the same database. HTTP tests exercise the Express app in process, so they do not need to bind a local port.
@@ -213,7 +213,7 @@ Tests use in-memory SQLite (`:memory:`) for isolation. The persistence regressio
 ## Linting and formatting
 
 ```bash
-npm run lint          # eslint
-npm run format        # prettier --write
-npm run format:check  # prettier --check
+bun run lint          # eslint
+bun run format        # prettier --write
+bun run format:check  # prettier --check
 ```

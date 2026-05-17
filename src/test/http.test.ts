@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import { Duplex } from 'node:stream';
-import test from 'node:test';
+
+import { test } from 'bun:test';
 
 import type { Express } from 'express';
 
@@ -58,8 +59,10 @@ async function dispatch(
   const req = new IncomingMessage(socket as unknown as Socket) as TestRequest;
   req.method = method;
   req.url = url;
+  req.headers = {};
 
   if (body !== undefined) {
+    req.headers['content-type'] = 'application/json';
     req.body = body;
   }
   req.push(null);
@@ -68,18 +71,50 @@ async function dispatch(
   res.assignSocket(socket as unknown as Socket);
 
   const response = new Promise<TestResponse>((resolve) => {
-    res.on('finish', () => {
-      const rawResponse = Buffer.concat(socket.chunks).toString('utf8');
-      const responseBody = rawResponse.split('\r\n\r\n', 2)[1] ?? '';
-      resolve({
-        status: res.statusCode,
-        body: responseBody ? JSON.parse(responseBody) : undefined,
+    const bodyChunks: Buffer[] = [];
+    let suppressWriteCapture = false;
+    const originalWrite = res.write.bind(res) as (...args: unknown[]) => boolean;
+    const originalEnd = res.end.bind(res) as (...args: unknown[]) => ServerResponse;
+
+    res.write = ((chunk: unknown, ...args: unknown[]) => {
+      if (!suppressWriteCapture) {
+        appendBodyChunk(bodyChunks, chunk);
+      }
+      return originalWrite(chunk, ...args);
+    }) as typeof res.write;
+
+    res.end = ((...args: unknown[]) => {
+      appendBodyChunk(bodyChunks, args[0]);
+      suppressWriteCapture = true;
+      const result = originalEnd(...args);
+      suppressWriteCapture = false;
+      queueMicrotask(() => {
+        const responseBody = Buffer.concat(bodyChunks).toString('utf8');
+        resolve({
+          status: res.statusCode,
+          body: responseBody ? JSON.parse(responseBody) : undefined,
+        });
       });
-    });
+      return result;
+    }) as typeof res.end;
   });
 
   app(req, res);
   return response;
+}
+
+function appendBodyChunk(chunks: Buffer[], chunk: unknown): void {
+  if (typeof chunk === 'string') {
+    chunks.push(Buffer.from(chunk));
+    return;
+  }
+  if (Buffer.isBuffer(chunk)) {
+    chunks.push(chunk);
+    return;
+  }
+  if (chunk instanceof Uint8Array) {
+    chunks.push(Buffer.from(chunk));
+  }
 }
 
 async function withMutedErrors<T>(callback: () => Promise<T>): Promise<T> {
