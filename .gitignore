@@ -6,4 +6,3 @@ bananas.db-journal
 bananas.db-wal
 bananas.db-shm
 dist
-dist-test

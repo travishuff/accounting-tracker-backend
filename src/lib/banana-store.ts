@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import Database from 'better-sqlite3';
+import { Database } from 'bun:sqlite';
 
 import { InsufficientEligibleInventoryError } from './inventory-errors';
 
@@ -45,8 +45,8 @@ function rowToBanana(row: BananaRow): Banana {
 
 function createBananaStore(databasePath: string): BananaStore {
   const db = new Database(databasePath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS bananas (
@@ -55,22 +55,27 @@ function createBananaStore(databasePath: string): BananaStore {
       sell_date TEXT
     );
   `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS bananas_unsold_buy_date_idx
+    ON bananas (buy_date)
+    WHERE sell_date IS NULL;
+  `);
 
-  const listStmt = db.prepare<[], BananaRow>(
+  const listStmt = db.prepare<BananaRow, []>(
     'SELECT id, buy_date, sell_date FROM bananas ORDER BY rowid',
   );
-  const insertStmt = db.prepare<[string, string]>(
+  const insertStmt = db.prepare<unknown, [string, string]>(
     'INSERT INTO bananas (id, buy_date, sell_date) VALUES (?, ?, NULL)',
   );
-  const findSellableStmt = db.prepare<[string, string, number], BananaRow>(`
+  const findSellableStmt = db.prepare<BananaRow, [string, string, number]>(`
     SELECT id, buy_date, sell_date FROM bananas
     WHERE sell_date IS NULL
       AND buy_date <= ?
-      AND CAST(julianday(?) - julianday(buy_date) AS INTEGER) < ${FRESHNESS_DAYS}
+      AND buy_date > ?
     ORDER BY rowid
     LIMIT ?
   `);
-  const markSoldStmt = db.prepare<[string, string]>(
+  const markSoldStmt = db.prepare<unknown, [string, string]>(
     'UPDATE bananas SET sell_date = ? WHERE id = ?',
   );
 
@@ -85,7 +90,8 @@ function createBananaStore(databasePath: string): BananaStore {
   });
 
   const sellTxn = db.transaction((sellDate: string, count: number): Banana[] => {
-    const candidates = findSellableStmt.all(sellDate, sellDate, count);
+    const oldestEligibleBuyDate = subtractDays(sellDate, FRESHNESS_DAYS);
+    const candidates = findSellableStmt.all(sellDate, oldestEligibleBuyDate, count);
     if (candidates.length < count) {
       throw new InsufficientEligibleInventoryError(candidates.length, count, sellDate);
     }
@@ -114,6 +120,11 @@ function createBananaStore(databasePath: string): BananaStore {
       db.close();
     },
   };
+}
+
+function subtractDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day - days)).toISOString().slice(0, 10);
 }
 
 export { createBananaStore };
